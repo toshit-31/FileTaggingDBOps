@@ -10,15 +10,18 @@ import android.util.Log;
 import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class DiskDB extends SQLiteOpenHelper {
 
     private static final String databaseName = "test_ftr";
-    private static final int databaseVersion = 2;
+    private static final int databaseVersion = 5;
     private static String tableTags = Schema.tableTags;
     private static String tableTagToFiles = Schema.tableTagToFiles;
     private static String tableFilesToTag = Schema.tableFileToTags;
-    private String delimeter = ";";
+    private static String tableOps = Schema.tableOps;
+    private final String delimeter = ";";
 
     private SQLiteDatabase db = null;
 
@@ -57,15 +60,13 @@ public class DiskDB extends SQLiteOpenHelper {
         db.beginTransaction();
         String tagUID = String.valueOf(tagId);
         try{
-            db.delete(tableTags, Schema.Tags.tag_uid+"='?'", new String[]{tagUID});
-            db.delete(tableTagToFiles, Schema.TagToFiles.tag_uid+"='?'", new String[]{tagUID});
-            /*
-            function call to remove the data associated with the tags from FileToTags tables
-            * */
+            db.delete(tableTags, Schema.Tags.tag_uid+"=?", new String[]{tagUID});
+            db.delete(tableTagToFiles, Schema.TagToFiles.tag_uid+"=?", new String[]{tagUID});
             db.setTransactionSuccessful();
             db.endTransaction();
         } catch (Exception e){
             db.endTransaction();
+            e.printStackTrace();
             throw new Exception("Action Failed : failed to delete tag "+tagId);
         }
     }
@@ -83,8 +84,8 @@ public class DiskDB extends SQLiteOpenHelper {
         for(int i = 0; i < c.getCount(); i++){
             LinkedHashSet<Integer> tagSet = new LinkedHashSet<>();
             String tagList[] = c.getString(1).split(",");
-            for(int j = 0; j < tagList.length; i++){
-                tagSet.add(Integer.parseInt(tagList[i]));
+            for(int j = 0; j < tagList.length; j++){
+                tagSet.add(Integer.parseInt(tagList[j]));
             }
             taggedFiles.put(c.getString(0), tagSet);
             c.moveToNext();
@@ -141,7 +142,6 @@ public class DiskDB extends SQLiteOpenHelper {
             c = db.query(tableFilesToTag, new String[]{Schema.FileToTags.tags}, Schema.FileToTags.filePath+"=?", new String[]{filePath}, null, null, null);
             c.moveToFirst();
             String oldTagList = c.getString(0);
-
             if(oldTagList.contains(",")){
                 String updatedTagList = oldTagList.replace(tagId+",", "");
                 updatedRow.put(Schema.FileToTags.tags, updatedTagList);
@@ -160,9 +160,9 @@ public class DiskDB extends SQLiteOpenHelper {
 
     public FileList listFilesFor(int tagId, Integer limit, Integer offset){
         String l = "";
-        if(limit != null || limit != 0){
+        if(limit != null && limit != 0){
             l = limit.toString();
-            if(offset != null || offset != 0){
+            if(offset != null && offset != 0){
                 l = l+","+offset;
             }
         }
@@ -186,12 +186,14 @@ public class DiskDB extends SQLiteOpenHelper {
     public void onCreate(SQLiteDatabase db) {
         String q1 = "CREATE TABLE IF NOT EXISTS "+Schema.tagToFiles,
                 q2 = "CREATE TABLE IF NOT EXISTS "+Schema.fileToTags,
-                q3 = "CREATE TABLE IF NOT EXISTS "+Schema.tagList;
+                q3 = "CREATE TABLE IF NOT EXISTS "+Schema.tagList,
+                q4 = "CREATE TABLE IF NOT EXISTS "+Schema.opsLog;
         db.beginTransaction();
         try{
             db.execSQL(q1);
             db.execSQL(q2);
             db.execSQL(q3);
+            db.execSQL(q4);
             db.setTransactionSuccessful();
         } catch (Exception e){
             // something to do if transaction fails

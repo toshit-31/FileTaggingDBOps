@@ -55,6 +55,10 @@ public class FileList {
         return fileArray.length;
     }
 
+    public FileItem[] getFileArray() {
+        return fileArray;
+    }
+
     public FileItem[] getFileArray(int limit, int offset) {
         FileItem[] files = new FileItem[limit];
         for(int i = offset; i < offset+limit || i < fileArray.length; i++){
@@ -63,7 +67,7 @@ public class FileList {
         return files;
     }
 
-    public FileItem[] sortList(String by){
+    public FileList sortList(String by){
         Arrays.sort(fileArray, new Comparator<FileItem>() {
             @Override
             public int compare(FileItem f1, FileItem f2) {
@@ -80,6 +84,6 @@ public class FileList {
                 }
             }
         });
-        return fileArray;
+        return this;
     }
 }

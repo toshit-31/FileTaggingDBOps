@@ -1,9 +1,14 @@
 package com.example.utilities;
 
 import android.content.Context;
+import android.util.Log;
+
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.Iterator;
+
+import kotlin.jvm.Synchronized;
 
 public class MemoryDB {
     private static MemoryDB instance = null;
@@ -11,9 +16,11 @@ public class MemoryDB {
     private HashMap<String, Integer> tags = null;
     private HashMap<Integer, String> tagIds = null;
     DiskDB diskDB = null;
+    OpsLog ops = null;
 
     private MemoryDB(Context ctx){
         diskDB = new DiskDB(ctx);
+        ops = new OpsLog(ctx);
         refreshMemoryState();
     }
 
@@ -28,11 +35,14 @@ public class MemoryDB {
         }
     }
 
-    public static MemoryDB getInstance(Context context){
-        if(instance == null){
-            instance = new MemoryDB(context);
+    @Synchronized
+    public static synchronized MemoryDB getInstance(Context context){
+        synchronized (new Object()){
+            if(instance == null){
+                instance = new MemoryDB(context);
+            }
+            return instance;
         }
-        return instance;
     }
 
     public void addTag(String tagName){
@@ -48,6 +58,8 @@ public class MemoryDB {
 
         tags.remove(tagName);
         tagIds.remove(id);
+
+        ops.enqueue(OpsLog.TAG_DELETED, id, null, null);
     }
 
     public void updateTag(String oldName, String newName){
@@ -95,11 +107,19 @@ public class MemoryDB {
         if(tagSet == null){
             throw new Exception("Action Failed : No such file exists");
         }
-        String[] fileTags = new String[tagSet.size()];
+        ArrayList<String> fileTags = new ArrayList<>();
         Iterator<Integer> it = tagSet.iterator();
         for(int i = 0; it.hasNext(); i++){
-            fileTags[i] = tagIds.get(it.next());
+            int tagId = it.next();
+            if(tagIds.containsKey(tagId)){
+                fileTags.add(i, tagIds.get(tagId));
+            }
+            else {
+                tagSet.remove(tagId);
+                ops.enqueue(OpsLog.DETACH_TAG, tagId, filePath, null);
+            }
         }
-        return fileTags;
+        taggedFiles.put(filePath, tagSet);
+        return fileTags.toArray(new String[0]);
     }
 }
